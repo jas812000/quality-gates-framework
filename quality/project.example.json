@@ -1,0 +1,5 @@
+{
+  "project_name": "Example Project",
+  "scan_root": ".",
+  "safe_jdbc_urls": []
+}

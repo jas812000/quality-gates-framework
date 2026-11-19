@@ -1,0 +1,50 @@
+name: Framework regression tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python-portability:
+    name: Python portability (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Test shared utilities and discovery
+        run: python -m unittest discover -s quality/shared/tests -p "test_*.py" -q
+      - name: Test CI normalization and reporting
+        run: python -m unittest discover -s quality/CI/tests -p "test_*.py" -q
+      - name: Verify zero-config discovery
+        run: python -m quality.project_discovery --json .
+  posix-launcher:
+    name: POSIX launcher (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Validate shell syntax
+        shell: bash
+        run: |
+          sh -n quality/Local_Scans/run-local-checks.sh
+          sh -n quality/Local_Scans/checks/check_checkstyle.sh
+          sh -n quality/Local_Scans/checks/check_pmd.sh
+          sh -n quality/Local_Scans/checks/check_spotbugs.sh
+      - name: Test local orchestration
+        run: python -m unittest discover -s quality/Local_Scans/tests -p "test_*.py" -q

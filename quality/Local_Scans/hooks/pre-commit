@@ -1,0 +1,35 @@
+
+#!/bin/sh
+
+# Local Quality Gate — Advisory Pre-Commit Hook
+#
+# Runs local quality checks and reports findings.
+# Findings and scanner errors do not block Git commits.
+#
+# Setup:
+#   git config core.hooksPath quality/Local_Scans/hooks
+
+set -eu
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+CHECK_SCRIPT="${REPO_ROOT}/quality/Local_Scans/run-local-checks.sh"
+
+if [ ! -f "${CHECK_SCRIPT}" ]; then
+  echo "WARNING: Quality gate runner not found." >&2
+  echo "Expected: ${CHECK_SCRIPT}" >&2
+  exit 0
+fi
+
+echo "Running advisory local quality checks..."
+
+if sh "${CHECK_SCRIPT}"; then
+  echo "Local quality checks completed successfully."
+else
+  STATUS=$?
+  echo "WARNING: Local quality checks returned exit code ${STATUS}." >&2
+  echo "Review the quality report for findings or execution errors." >&2
+fi
+
+# The Local Quality Gate is advisory. Never block a commit.
+exit 0
