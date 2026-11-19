@@ -19,6 +19,7 @@ Behavior
 """
 
 import os
+import posixpath
 import re
 from pathlib import PurePosixPath
 
@@ -61,8 +62,8 @@ def _workspace_relative_path(value: object) -> str:
         if not workspace or not workspace.startswith("/"):
             return "unknown"
 
-        root = os.path.normpath(workspace)
-        candidate = os.path.normpath(path)
+        root = posixpath.normpath(workspace)
+        candidate = posixpath.normpath(path)
 
         if not candidate.startswith(root + "/"):
             return "unknown"
