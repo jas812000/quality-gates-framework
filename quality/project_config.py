@@ -53,7 +53,7 @@ def _safe_jdbc_rule(repo: Path, rule: dict) -> dict:
         raise ValueError("Invalid JDBC database")
     path = resolve_path(repo, rule["file"])
     return {
-        "file": str(Path(path).relative_to(repo)),
+        "file": Path(path).relative_to(repo).as_posix(),
         "url": f"jdbc:{parts['scheme']}://{parts['host']}:{port}/{database}",
     }
 
