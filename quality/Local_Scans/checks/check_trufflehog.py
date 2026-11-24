@@ -3,6 +3,9 @@
 
 import json
 import shutil
+import stat
+import subprocess  # nosec B404 - scanner timeout handling
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -10,6 +13,14 @@ from quality.Local_Scans.checks.scanner_runner import run_scanner_to_file, write
 
 
 IMAGE = "trufflesecurity/trufflehog:3.82.6"
+
+
+def _unsafe_path(path):
+    """Exclude symbolic links and Windows reparse points from snapshots."""
+    return path.is_symlink() or bool(
+        getattr(path.lstat(), "st_file_attributes", 0)
+        & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    )
 
 
 def _stage_source(root: Path, temporary: str) -> tuple[Path, Path]:
@@ -33,7 +44,7 @@ def _stage_source(root: Path, temporary: str) -> tuple[Path, Path]:
         excluded = ignore_generated(directory, names)
         excluded.update(
             name for name in names
-            if (Path(directory) / name).is_symlink()
+            if _unsafe_path(Path(directory) / name)
         )
         return excluded
 
@@ -57,8 +68,28 @@ def _stage_source(root: Path, temporary: str) -> tuple[Path, Path]:
     return staging, exclude
 
 
+def _failure_category(stderr):
+    """Return fixed diagnostic labels only; never retain scanner stderr."""
+    message = (stderr or b"").lower()
+    for marker, category in (
+        (b"not supported", "unsupported platform or operation"),
+        (b"trufflehog updater", "scanner supervisor error"),
+        (b"unknown flag", "unsupported option"),
+        (b"unknown long flag", "unsupported option"),
+        (b"access is denied", "access denied"),
+        (b"permission denied", "access denied"),
+        (b"cannot find", "path unavailable"),
+        (b"no such file", "path unavailable"),
+        (b"panic:", "scanner panic"),
+        (b"fatal", "scanner fatal error"),
+    ):
+        if marker in message:
+            return category
+    return "unclassified scanner error"
+
+
 def run(repo_root, work_dir):
-    """Scan the repository using the CI TruffleHog image."""
+    """Scan a filtered snapshot using native TruffleHog or Docker."""
     root = Path(repo_root).resolve()
     work = Path(work_dir).resolve()
     work.mkdir(parents=True, exist_ok=True)
@@ -90,9 +121,19 @@ def run(repo_root, work_dir):
             ]
 
             if native:
-                command = [native, "filesystem", str(staging), "--exclude-paths",
-                           str(exclude), "--json", "--no-verification"]
-            completed = run_scanner_to_file(command, output)
+                # Relative scan roots avoid Windows drive-letter interpretation.
+                # The snapshot already excludes generated and unsafe paths.
+                command = [native, "filesystem", ".", "--json", "--no-verification", "--no-update"]
+                if sys.platform == "win32":
+                    # The upstream supervisor is not portable to Windows.
+                    command.append("--local-dev")
+                completed = run_scanner_to_file(
+                    command, output, cwd=staging, capture_diagnostics=True,
+                )
+            else:
+                completed = run_scanner_to_file(
+                    command, output, capture_diagnostics=True,
+                )
 
         valid = completed.returncode == 0
 
@@ -117,10 +158,11 @@ def run(repo_root, work_dir):
             "trufflehog",
             "failed",
             completed.returncode,
-            "TruffleHog execution failed or JSONL was invalid",
+            ("TruffleHog execution failed: " + _failure_category(completed.stderr)
+             if completed.returncode else "TruffleHog JSONL was invalid"),
         )
 
-    except OSError:
+    except (OSError, subprocess.SubprocessError):
         output.unlink(missing_ok=True)
         write_status(
             work,

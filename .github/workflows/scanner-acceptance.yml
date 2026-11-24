@@ -1,7 +1,10 @@
 name: Real scanner acceptance
 on:
   push:
-    branches: [feature/NativeWindowsTrivyLocalScans]
+    branches: [main, 'feature/**']
+    paths:
+      - 'quality/**'
+      - '.github/workflows/**'
   workflow_dispatch:
     inputs:
       platform:
@@ -25,9 +28,6 @@ jobs:
 
     timeout-minutes: 90
 
-    env:
-      QG_EVIDENCE_DIR: ${{ runner.temp }}/qg-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
-
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,7 +37,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
@@ -209,6 +209,8 @@ jobs:
       - name: Stage acceptance evidence
         if: always()
         shell: pwsh
+        env:
+          QG_EVIDENCE_DIR: ${{ runner.temp }}/qg-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           $ErrorActionPreference = 'Stop'
 
@@ -274,6 +276,8 @@ jobs:
       - name: Display sanitized platform results
         if: always()
         shell: pwsh
+        env:
+          QG_EVIDENCE_DIR: ${{ runner.temp }}/qg-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           $folder = $env:QG_EVIDENCE_DIR
 
@@ -294,5 +298,5 @@ jobs:
         if: always()
         with:
           name: acceptance-${{ matrix.platform }}-${{ github.run_attempt }}
-          path: ${{ env.QG_EVIDENCE_DIR }}/
+          path: ${{ runner.temp }}/qg-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}/
           if-no-files-found: error

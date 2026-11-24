@@ -9,6 +9,22 @@ permissions:
   contents: read
 
 jobs:
+  workflow-validation:
+    name: GitHub Actions workflow validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: false
+      - name: Install Actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+      - name: Validate GitHub Actions workflows
+        run: '"$(go env GOPATH)/bin/actionlint" -color -shellcheck= -pyflakes='
+
   python-portability:
     name: Python portability (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

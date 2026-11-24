@@ -7,12 +7,13 @@ from pathlib import Path
 from typing import NamedTuple, Callable, Any
 
 
-def run_scanner_to_file(command, output: Path, *, env=None):
+def run_scanner_to_file(command, output: Path, *, env=None, cwd=None, capture_diagnostics=False):
     """Execute a fixed scanner argv, streaming stdout to an artifact."""
     with output.open("w", encoding="utf-8") as stream:
         return subprocess.run(  # nosec B603 - scanner argv; shell=False
-            command, stdout=stream, stderr=subprocess.DEVNULL,
-            env=env, check=False, timeout=900,
+            command, stdout=stream,
+            stderr=subprocess.PIPE if capture_diagnostics else subprocess.DEVNULL,
+            env=env, cwd=cwd, check=False, timeout=900,
         )
 
 
