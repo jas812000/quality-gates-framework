@@ -10,81 +10,263 @@ on:
         type: choice
         default: Both
         options: [Both, Linux, Windows, macOS]
+
 permissions:
   contents: read
+
 jobs:
   real-scanners:
     strategy:
       fail-fast: false
       matrix:
         platform: ${{ fromJSON((github.event_name == 'push' || inputs.platform == 'Both') && '["Linux","Windows"]' || format('["{0}"]', inputs.platform)) }}
+
     runs-on: ${{ matrix.platform == 'Linux' && fromJSON('["ubuntu-latest"]') || (matrix.platform == 'Windows' && fromJSON('["windows-latest"]') || fromJSON('["self-hosted","macOS","qg-acceptance"]')) }}
+
     timeout-minutes: 90
+
+    env:
+      QG_EVIDENCE_DIR: ${{ runner.temp }}/qg-acceptance-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
+
       - uses: actions/setup-node@v4
+        id: node_setup
         with:
           node-version: '22'
+
+      - name: Install Python dependencies
+        id: python_dependencies
+        run: python -m pip install -r quality/requirements-test.txt -r quality/Local_Scans/requirements-scanners.txt
+
       - name: Install Linux scanner binaries
+        id: linux_scanners
         if: runner.os == 'Linux'
         shell: bash
         run: |
           set -euo pipefail
-          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+
+          curl --retry 4 --retry-delay 10 --retry-all-errors -fsSL \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz \
+            -o "$RUNNER_TEMP/gitleaks.tar.gz"
+
           tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
           sudo install "$RUNNER_TEMP/gitleaks" /usr/local/bin/gitleaks
-          curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.deb -o "$RUNNER_TEMP/trivy.deb"
+
+          curl --retry 4 --retry-delay 10 --retry-all-errors -fsSL \
+            https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.deb \
+            -o "$RUNNER_TEMP/trivy.deb"
+
           sudo dpkg -i "$RUNNER_TEMP/trivy.deb"
+
       - name: Install Windows scanner binaries
+        id: windows_scanners
         if: runner.os == 'Windows'
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          choco install gitleaks trivy trufflehog -y --no-progress
-          if ($LASTEXITCODE -ne 0) { throw 'Scanner installation failed' }
-          "$env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-      - name: Install Python dependencies
-        run: python -m pip install -r quality/requirements-test.txt -r quality/Local_Scans/requirements-scanners.txt
+
+          $destination = Join-Path $env:RUNNER_TEMP "qg-scanners-${{ github.run_id }}-${{ github.run_attempt }}"
+          New-Item -ItemType Directory -Force -Path $destination | Out-Null
+
+          function Install-Scanner {
+            param(
+              [string]$Repository,
+              [string]$Version,
+              [string]$AssetPattern,
+              [string]$Executable
+            )
+
+            $headers = @{
+              Authorization = "Bearer $env:GH_TOKEN"
+              Accept = "application/vnd.github+json"
+            }
+
+            $release = Invoke-RestMethod `
+              -Uri "https://api.github.com/repos/$Repository/releases/tags/$Version" `
+              -Headers $headers `
+              -MaximumRetryCount 4 `
+              -RetryIntervalSec 10
+
+            $assets = @(
+              $release.assets |
+                Where-Object { $_.name -match $AssetPattern }
+            )
+
+            if ($assets.Count -ne 1) {
+              throw "Expected exactly one release asset for $Repository"
+            }
+
+            $asset = $assets[0]
+
+            if ($asset.digest -notmatch '^sha256:[a-fA-F0-9]{64}$') {
+              throw "Missing SHA256 digest for $Repository"
+            }
+
+            $archive = Join-Path $destination $asset.name
+
+            Invoke-WebRequest `
+              -Uri $asset.browser_download_url `
+              -OutFile $archive `
+              -MaximumRetryCount 4 `
+              -RetryIntervalSec 10
+
+            $expected = $asset.digest.Substring(7)
+            $actual = (Get-FileHash `
+              -LiteralPath $archive `
+              -Algorithm SHA256).Hash
+
+            if ($actual -ne $expected) {
+              throw "Checksum verification failed for $Repository"
+            }
+
+            $extract = Join-Path $destination "$($asset.name)-extracted"
+
+            New-Item `
+              -ItemType Directory `
+              -Force `
+              -Path $extract | Out-Null
+
+            if ($asset.name -match '\.zip$') {
+              Expand-Archive `
+                -LiteralPath $archive `
+                -DestinationPath $extract `
+                -Force
+            }
+            elseif ($asset.name -match '\.tar\.gz$') {
+              tar.exe -xzf $archive -C $extract
+
+              if ($LASTEXITCODE -ne 0) {
+                throw "Archive extraction failed for $Repository"
+              }
+            }
+            else {
+              throw "Unsupported archive format for $Repository"
+            }
+
+            $executables = @(
+              Get-ChildItem -LiteralPath $extract -Recurse -File |
+                Where-Object { $_.Name -eq $Executable }
+            )
+
+            if ($executables.Count -ne 1) {
+              throw "Expected exactly one executable: $Executable"
+            }
+
+            Copy-Item `
+              -LiteralPath $executables[0].FullName `
+              -Destination (Join-Path $destination $Executable)
+
+            Write-Host "$Executable installed and checksum verified"
+          }
+
+          Install-Scanner `
+            -Repository "gitleaks/gitleaks" `
+            -Version "v8.30.1" `
+            -AssetPattern 'windows_x64\.zip$' `
+            -Executable "gitleaks.exe"
+
+          Install-Scanner `
+            -Repository "aquasecurity/trivy" `
+            -Version "v0.76.2" `
+            -AssetPattern 'windows-64bit\.zip$' `
+            -Executable "trivy.exe"
+
+          Install-Scanner `
+            -Repository "trufflesecurity/trufflehog" `
+            -Version "v3.90.0" `
+            -AssetPattern 'windows_amd64\.tar\.gz$' `
+            -Executable "trufflehog.exe"
+
+          $destination | Out-File `
+            -FilePath $env:GITHUB_PATH `
+            -Encoding utf8 `
+            -Append
+
       - name: Run portable verification and real acceptance
+        id: platform_acceptance
         run: python -m quality.Local_Scans.platform_acceptance
+
       - name: Validate generated HTML and CSS
-        if: success() || failure()
+        id: generated_validation
+        if: ${{ !cancelled() && steps.python_dependencies.outcome == 'success' && steps.node_setup.outcome == 'success' }}
         run: python -m quality.shared.reporting.validate_generated --output "${{ runner.temp }}/qg-generated-${{ github.run_id }}-${{ github.run_attempt }}"
+
       - name: Stage acceptance evidence
         if: always()
         shell: pwsh
         run: |
-          $destination = Join-Path $env:RUNNER_TEMP "qg-acceptance-evidence"
+          $ErrorActionPreference = 'Stop'
+
+          $destination = $env:QG_EVIDENCE_DIR
           New-Item -ItemType Directory -Force -Path $destination | Out-Null
+
+          $status = [ordered]@{
+            platform = "${{ matrix.platform }}"
+            run_id = "${{ github.run_id }}"
+            run_attempt = "${{ github.run_attempt }}"
+            node_setup = "${{ steps.node_setup.outcome }}"
+            python_dependencies = "${{ steps.python_dependencies.outcome }}"
+            linux_scanners = "${{ steps.linux_scanners.outcome }}"
+            windows_scanners = "${{ steps.windows_scanners.outcome }}"
+            platform_acceptance = "${{ steps.platform_acceptance.outcome }}"
+            generated_validation = "${{ steps.generated_validation.outcome }}"
+          }
+
+          $status |
+            ConvertTo-Json |
+            Set-Content `
+              -LiteralPath (Join-Path $destination "workflow-status.json") `
+              -Encoding utf8
 
           $prefix = "qg-platform-${{ github.run_id }}-${{ github.run_attempt }}"
           $downloads = Join-Path $HOME "Downloads"
 
           foreach ($suffix in @(".txt", ".json", "_positive.zip", "_clean.zip")) {
             $source = Join-Path $downloads ($prefix + $suffix)
+
             if (Test-Path -LiteralPath $source -PathType Leaf) {
-              Copy-Item -LiteralPath $source -Destination $destination
+              Copy-Item `
+                -LiteralPath $source `
+                -Destination $destination
             }
           }
 
           $generated = Join-Path $env:RUNNER_TEMP "qg-generated-${{ github.run_id }}-${{ github.run_attempt }}"
 
           if (Test-Path -LiteralPath $generated) {
+            $summary = Join-Path $generated "summary.json"
+
+            if (Test-Path -LiteralPath $summary -PathType Leaf) {
+              Copy-Item `
+                -LiteralPath $summary `
+                -Destination (Join-Path $destination "generated-summary.json")
+            }
+
             Get-ChildItem -LiteralPath $generated -Directory |
               ForEach-Object {
                 $summary = Join-Path $_.FullName "summary.json"
+
                 if (Test-Path -LiteralPath $summary -PathType Leaf) {
-                  Copy-Item -LiteralPath $summary `
-                    -Destination (Join-Path $destination "generated-summary.json")
+                  $summaryName = "generated-$($_.Name)-summary.json"
+
+                  Copy-Item `
+                    -LiteralPath $summary `
+                    -Destination (Join-Path $destination $summaryName)
                 }
               }
           }
@@ -93,15 +275,24 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          $folder = Join-Path $env:RUNNER_TEMP "qg-acceptance-evidence"
-          Get-ChildItem -LiteralPath $folder -Filter "*.txt" |
-            ForEach-Object {
-              Get-Content -LiteralPath $_.FullName
+          $folder = $env:QG_EVIDENCE_DIR
+
+          if (Test-Path -LiteralPath $folder) {
+            $status = Join-Path $folder "workflow-status.json"
+
+            if (Test-Path -LiteralPath $status -PathType Leaf) {
+              Get-Content -LiteralPath $status
             }
+
+            Get-ChildItem -LiteralPath $folder -Filter "*.txt" |
+              ForEach-Object {
+                Get-Content -LiteralPath $_.FullName
+              }
+          }
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: acceptance-${{ matrix.platform }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/qg-acceptance-evidence/
+          path: ${{ env.QG_EVIDENCE_DIR }}/
           if-no-files-found: error
