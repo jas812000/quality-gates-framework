@@ -25,14 +25,14 @@ from defusedxml.common import DefusedXmlException
 
 
 def _strip_root(path: str, repo_root: str) -> str:
-    """Return a repository-relative path when the file is inside the repository."""
+    """Return a repository-relative path using portable separators."""
     source = Path(path)
     root = Path(repo_root)
 
     try:
-        return str(source.relative_to(root))
+        return source.relative_to(root).as_posix()
     except ValueError:
-        return path
+        return source.as_posix()
 
 
 def _empty_sev() -> dict:

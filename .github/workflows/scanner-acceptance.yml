@@ -59,14 +59,49 @@ jobs:
       - name: Validate generated HTML and CSS
         if: success() || failure()
         run: python -m quality.shared.reporting.validate_generated --output "${{ runner.temp }}/qg-generated-${{ github.run_id }}-${{ github.run_attempt }}"
+      - name: Stage acceptance evidence
+        if: always()
+        shell: pwsh
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP "qg-acceptance-evidence"
+          New-Item -ItemType Directory -Force -Path $destination | Out-Null
+
+          $prefix = "qg-platform-${{ github.run_id }}-${{ github.run_attempt }}"
+          $downloads = Join-Path $HOME "Downloads"
+
+          foreach ($suffix in @(".txt", ".json", "_positive.zip", "_clean.zip")) {
+            $source = Join-Path $downloads ($prefix + $suffix)
+            if (Test-Path -LiteralPath $source -PathType Leaf) {
+              Copy-Item -LiteralPath $source -Destination $destination
+            }
+          }
+
+          $generated = Join-Path $env:RUNNER_TEMP "qg-generated-${{ github.run_id }}-${{ github.run_attempt }}"
+
+          if (Test-Path -LiteralPath $generated) {
+            Get-ChildItem -LiteralPath $generated -Directory |
+              ForEach-Object {
+                $summary = Join-Path $_.FullName "summary.json"
+                if (Test-Path -LiteralPath $summary -PathType Leaf) {
+                  Copy-Item -LiteralPath $summary `
+                    -Destination (Join-Path $destination "generated-summary.json")
+                }
+              }
+          }
+
+      - name: Display sanitized platform results
+        if: always()
+        shell: pwsh
+        run: |
+          $folder = Join-Path $env:RUNNER_TEMP "qg-acceptance-evidence"
+          Get-ChildItem -LiteralPath $folder -Filter "*.txt" |
+            ForEach-Object {
+              Get-Content -LiteralPath $_.FullName
+            }
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: acceptance-${{ matrix.platform }}-${{ github.run_attempt }}
-          path: |
-            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}.txt
-            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}.json
-            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}_positive.zip
-            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}_clean.zip
-            ${{ runner.temp }}/qg-generated-${{ github.run_id }}-${{ github.run_attempt }}/qg-generated-*/summary.json
+          path: ${{ runner.temp }}/qg-acceptance-evidence/
           if-no-files-found: error

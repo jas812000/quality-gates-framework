@@ -1,6 +1,6 @@
-
 """Run HTMLHint with CI-compatible output and validation."""
 
+import shutil
 from pathlib import Path
 
 from quality.Local_Scans.checks.scanner_runner import (
@@ -15,11 +15,11 @@ def run(repo_root, work_dir):
     """Scan eligible HTML files and record execution status."""
     repo_root = Path(repo_root).resolve()
     work_dir = Path(work_dir)
+    work_dir.mkdir(parents=True, exist_ok=True)
 
     files = eligible_files(repo_root, {".html"})
 
     if not files:
-        work_dir.mkdir(parents=True, exist_ok=True)
         (work_dir / "htmlhint.json").unlink(missing_ok=True)
         write_status(
             work_dir,
@@ -43,14 +43,25 @@ def run(repo_root, work_dir):
             )
         )
 
+    npx = shutil.which("npx")
+
+    if npx is None:
+        (work_dir / "htmlhint.json").unlink(missing_ok=True)
+        write_status(
+            work_dir,
+            "htmlhint",
+            "failed",
+            reason="npx executable unavailable",
+        )
+        return
+
     run_json_scanner(
         "htmlhint",
-        ["npx", "--yes", "htmlhint", *files, "--format", "json"],
+        [npx, "--yes", "htmlhint", *files, "--format", "json"],
         work_dir,
         "htmlhint.json",
         ScannerValidation({0, 1}, valid_htmlhint),
     )
-
 
 
 if __name__ == "__main__":
