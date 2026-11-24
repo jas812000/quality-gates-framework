@@ -8,13 +8,6 @@ CSS = BASE_CSS + """
 .tool-header { padding: 14px 20px; background: #fafbfc;
                border-bottom: 1px solid #eee; }
 
-.tool-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 6px;
-}
-
 .tool-name { font-weight: bold; font-size: 1.05em;
              font-family: SFMono-Regular, Consolas, monospace; }
 
@@ -132,13 +125,6 @@ footer { margin-top: 32px; padding-top: 12px;
 .toggle-wrap {
     display: flex;
     justify-content: center;
-}
-
-.toggle {
-    position: relative;
-    display: inline-block;
-    width: 36px;
-    height: 20px;
 }
 
 .toggle input {

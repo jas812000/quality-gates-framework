@@ -1,6 +1,6 @@
 """Native TruffleHog snapshot and failure regression tests."""
 import json
-import subprocess
+from types import SimpleNamespace
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,9 +29,11 @@ class NativeTruffleHogTests(unittest.TestCase):
                 self.assertFalse((kwargs["cwd"] / ".git").exists())
                 self.assertTrue(kwargs["capture_diagnostics"])
                 output.write_text(payload, encoding="utf-8")
-                return subprocess.CompletedProcess(command, code, stderr=stderr)
+                return SimpleNamespace(returncode=code, stderr=stderr)
 
-            with patch.object(scanner.sys, "platform", platform), patch.object(scanner.shutil, "which", side_effect=lambda name: name), patch.object(scanner, "run_scanner_to_file", side_effect=execute):
+            with (patch.object(scanner.sys, "platform", platform),
+                  patch.object(scanner.shutil, "which", side_effect=lambda name: name),
+                  patch.object(scanner, "run_scanner_to_file", side_effect=execute)):
                 scanner.run(root, work)
             status = json.loads((work / "trufflehog.status.json").read_text())
             return status, (work / "trufflehog.jsonl").exists()

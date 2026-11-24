@@ -109,6 +109,18 @@ fi
 # Validate archive
 # ----------------------------------------------------------
 
+if ! run_python - "${PMD_ZIP}" <<'PY_CHECKSUM'
+import hashlib
+import sys
+from pathlib import Path
+expected = "d27177c185b837fa57f097e482d1253468aa035379c5eb2671fa0a279109b179"
+raise SystemExit(int(hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest() != expected))
+PY_CHECKSUM
+then
+  echo "ERROR: PMD checksum mismatch." >&2
+  exit 2
+fi
+
 if ! unzip -tq "${PMD_ZIP}" >/dev/null 2>&1; then
   echo "ERROR: PMD archive validation failed." >&2
   exit 2

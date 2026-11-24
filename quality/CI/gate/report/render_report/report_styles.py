@@ -15,13 +15,6 @@ CSS = BASE_CSS + """
     border-bottom: 1px solid #eee;
 }
 
-.tool-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 6px;
-}
-
 .tool-name {
     font-weight: bold;
     font-size: 1.05em;
@@ -203,13 +196,6 @@ a.tool-link:hover {
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.toggle {
-    position: relative;
-    display: inline-block;
-    width: 36px;
-    height: 20px;
 }
 
 
