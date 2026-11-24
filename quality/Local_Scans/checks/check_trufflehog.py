@@ -5,6 +5,7 @@ import json
 import shutil
 import stat
 import subprocess  # nosec B404 - scanner timeout handling
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -71,6 +72,8 @@ def _failure_category(stderr):
     """Return fixed diagnostic labels only; never retain scanner stderr."""
     message = (stderr or b"").lower()
     for marker, category in (
+        (b"not supported", "unsupported platform or operation"),
+        (b"trufflehog updater", "scanner supervisor error"),
         (b"unknown flag", "unsupported option"),
         (b"unknown long flag", "unsupported option"),
         (b"access is denied", "access denied"),
@@ -120,7 +123,10 @@ def run(repo_root, work_dir):
             if native:
                 # Relative scan roots avoid Windows drive-letter interpretation.
                 # The snapshot already excludes generated and unsafe paths.
-                command = [native, "filesystem", ".", "--json", "--no-verification"]
+                command = [native, "filesystem", ".", "--json", "--no-verification", "--no-update"]
+                if sys.platform == "win32":
+                    # The upstream supervisor is not portable to Windows.
+                    command.append("--local-dev")
                 completed = run_scanner_to_file(
                     command, output, cwd=staging, capture_diagnostics=True,
                 )

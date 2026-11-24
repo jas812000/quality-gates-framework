@@ -11,7 +11,7 @@ from quality.Local_Scans.checks import check_trufflehog as scanner
 class NativeTruffleHogTests(unittest.TestCase):
     """Verify native execution and strict output handling."""
 
-    def exercise(self, code, payload, stderr=b""):
+    def exercise(self, code, payload, stderr=b"", platform="darwin"):
         """Run a synthetic scanner response against a filtered snapshot."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repo with spaces"
@@ -21,14 +21,17 @@ class NativeTruffleHogTests(unittest.TestCase):
             work = Path(directory) / "work"
 
             def execute(command, output, **kwargs):
-                self.assertEqual(command[1:], ["filesystem", ".", "--json", "--no-verification"])
+                expected = ["filesystem", ".", "--json", "--no-verification", "--no-update"]
+                if platform == "win32":
+                    expected.append("--local-dev")
+                self.assertEqual(command[1:], expected)
                 self.assertTrue((kwargs["cwd"] / "sample.txt").is_file())
                 self.assertFalse((kwargs["cwd"] / ".git").exists())
                 self.assertTrue(kwargs["capture_diagnostics"])
                 output.write_text(payload, encoding="utf-8")
                 return subprocess.CompletedProcess(command, code, stderr=stderr)
 
-            with patch.object(scanner.shutil, "which", side_effect=lambda name: name), patch.object(scanner, "run_scanner_to_file", side_effect=execute):
+            with patch.object(scanner.sys, "platform", platform), patch.object(scanner.shutil, "which", side_effect=lambda name: name), patch.object(scanner, "run_scanner_to_file", side_effect=execute):
                 scanner.run(root, work)
             status = json.loads((work / "trufflehog.status.json").read_text())
             return status, (work / "trufflehog.jsonl").exists()
@@ -52,3 +55,9 @@ class NativeTruffleHogTests(unittest.TestCase):
         self.assertFalse(exists)
         self.assertEqual(status["status"], "failed")
         self.assertEqual(status["reason"], "TruffleHog execution failed: access denied")
+
+    def test_windows_supervisor_bypass(self):
+        """Windows scans bypass the unsupported process supervisor."""
+        self.assertTrue(self.exercise(0, "", platform="win32")[1])
+        self.assertTrue(self.exercise(0, "{}\n", platform="win32")[1])
+        self.assertFalse(self.exercise(1, "", platform="win32")[1])
