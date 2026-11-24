@@ -73,8 +73,9 @@ def run(repo_root, work_dir):
             # exclude .git from a filesystem walk, so stage a filtered copy.
             staging, exclude = _stage_source(root, temporary)
 
+            native = shutil.which("trufflehog")
             docker = shutil.which("docker")
-            if docker is None:
+            if native is None and docker is None:
                 raise OSError("Docker executable unavailable")
 
             command = [
@@ -88,6 +89,9 @@ def run(repo_root, work_dir):
                 "--no-verification",
             ]
 
+            if native:
+                command = [native, "filesystem", str(staging), "--exclude-paths",
+                           str(exclude), "--json", "--no-verification"]
             completed = run_scanner_to_file(command, output)
 
         valid = completed.returncode == 0

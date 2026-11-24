@@ -76,7 +76,8 @@ def run_selected(repo_root, work_dir, scanner):
                 "-m",
                 "pylint",
                 *files,
-                f"--rcfile={repo_root / '.pylintrc'}",
+                *([f"--rcfile={repo_root / '.pylintrc'}"]
+                  if (repo_root / ".pylintrc").is_file() else []),
                 "--output-format=json",
             ],
             work_dir,

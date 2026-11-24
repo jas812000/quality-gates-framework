@@ -103,6 +103,28 @@ class TestPmdParser(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.parse_xml("<not_pmd></not_pmd>")
 
+    def test_native_path_normalization(self):
+        """Verify native filesystem paths use portable separators."""
+        root = Path(REPO_ROOT)
+        source = root / "backend" / "src" / "Test.java"
+
+        xml = f"""
+        <pmd xmlns="{PMD_NAMESPACE}">
+          <file name="{source}">
+            <violation beginline="1" priority="3">
+              Test violation
+            </violation>
+          </file>
+        </pmd>
+        """
+
+        findings, _ = self.parse_xml(xml)
+
+        self.assertEqual(
+            findings[0]["file"],
+            "backend/src/Test.java",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

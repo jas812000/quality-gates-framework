@@ -33,7 +33,8 @@ def finding_row(finding: dict) -> str:
 def summary_row(tool_id: str, tool_name: str, status: str, findings: list) -> str:
     """Render a summary table row with visibility toggle."""
     category = escape(CATEGORY_MAP.get(tool_id, "Analysis"))
-    count = "&mdash;" if status in ("error", "skipped") and not findings else str(len(findings))
+    count = "&mdash;" if status in ("error", "skipped",
+        "disabled") and not findings else str(len(findings))
     toggle = (
         f'<div class="toggle-wrap">'
         f'<label class="toggle">'

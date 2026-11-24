@@ -27,6 +27,8 @@ jobs:
         run: python -m unittest discover -s quality/shared/tests -p "test_*.py" -q
       - name: Test CI normalization and reporting
         run: python -m unittest discover -s quality/CI/tests -p "test_*.py" -q
+      - name: Test local orchestration on native Python
+        run: python -m unittest discover -s quality/Local_Scans/tests -p "test_*.py" -q
       - name: Verify zero-config discovery
         run: python -m quality.project_discovery --json .
   posix-launcher:

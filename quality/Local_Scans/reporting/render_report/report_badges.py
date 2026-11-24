@@ -18,6 +18,8 @@ def severity_badge(severity: str) -> str:
 
 def status_html(status: str) -> str:
     """Render scanner execution and quality gate status."""
+    if status == "disabled":
+        return '<span style="color:#7f8c8d;">DISABLED</span>'
     if status == "passed":
         return '<span style="color:#27ae60;">PASSED</span>'
     if status == "failed":
@@ -37,7 +39,7 @@ def border_color(status: str) -> str:
         return "#c0392b"
     if status == "error":
         return "#8e44ad"
-    if status == "skipped":
+    if status in ("skipped", "disabled"):
         return "#7f8c8d"
     return "#8e44ad"
 

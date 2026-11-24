@@ -27,6 +27,7 @@ These utilities are used by multiple components of the gate engine:
 """
 
 from __future__ import annotations
+from pathlib import Path
 
 
 # ----------------------------------------------------------
@@ -130,3 +131,16 @@ def is_severity_at_least(severity: str | None, threshold: str) -> bool:
         return False
 
     return severity_index <= threshold_index
+
+def initialize_artifact(artifact: Path, result: dict) -> bool:
+    """Initialize parser execution status based on artifact availability."""
+    present = artifact.exists()
+
+    result["artifact_present"] = present
+
+    if present:
+        result["executed"] = True
+    else:
+        result["runtime_error"] = True
+
+    return present

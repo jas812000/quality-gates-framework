@@ -62,7 +62,7 @@ def run(repo_root, work_dir, binary="gitleaks"):
             command,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            check=False,
+            check=False, timeout=900,
         )
 
         exit_code = completed.returncode
@@ -118,7 +118,7 @@ def run(repo_root, work_dir, binary="gitleaks"):
             "Gitleaks execution failed or report was invalid",
         )
 
-    except OSError:
+    except (OSError, subprocess.SubprocessError):
         output.unlink(missing_ok=True)
 
         write_status(

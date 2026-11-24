@@ -10,6 +10,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from contextlib import ExitStack
 
 from quality.CI.gate.parsers.gitleaks import _build_gitleaks_finding
 from quality.CI.gate.parsers.trufflehog import (
@@ -33,21 +34,33 @@ class SecretScannerSecurityTests(unittest.TestCase):
     """Check scanner normalization, redaction, and exact JDBC exceptions."""
     def setUp(self):
         """Use an isolated synthetic configuration, never the host's config."""
-        self._temporary_directory = tempfile.TemporaryDirectory()
-        self.addCleanup(self._temporary_directory.cleanup)
+        with ExitStack() as stack:
+            workspace = Path(
+                stack.enter_context(tempfile.TemporaryDirectory())
+            ).resolve()
+
+            self.addCleanup(stack.pop_all().close)
+
         self._previous_config = os.environ.get("QUALITY_CONFIG")
         self._previous_workspace = os.environ.get("GITHUB_WORKSPACE")
-        workspace = Path(self._temporary_directory.name).resolve()
+
         config = workspace / "project.json"
-        config.write_text(json.dumps({
-            "safe_jdbc_urls": [{
-                "file": "backend/src/main/resources/application.properties",
-                "jdbc_parts": {
-                    "scheme": "postgresql", "host": "localhost",
-                    "port": 5432, "database": "epms",
-                },
-            }],
-        }), encoding="utf-8")
+
+        config.write_text(
+            json.dumps({
+                "safe_jdbc_urls": [{
+                    "file": "backend/src/main/resources/application.properties",
+                    "jdbc_parts": {
+                        "scheme": "postgresql",
+                        "host": "localhost",
+                        "port": 5432,
+                        "database": "epms",
+                    },
+                }],
+            }),
+            encoding="utf-8",
+        )
+
         os.environ["GITHUB_WORKSPACE"] = str(workspace)
         os.environ["QUALITY_CONFIG"] = str(config)
 

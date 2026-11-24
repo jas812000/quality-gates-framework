@@ -1,3 +1,4 @@
+# pylint: disable=invalid-name
 """CI Quality Gate package.
 
 The uppercase CI directory name is retained for compatibility with

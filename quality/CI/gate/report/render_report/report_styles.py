@@ -25,7 +25,7 @@ CSS = BASE_CSS + """
 .tool-name {
     font-weight: bold;
     font-size: 1.05em;
-    font-family: "SFMono-Regular", Consolas, monospace;
+    font-family: SFMono-Regular, Consolas, monospace;
 }
 
 .tool-category {
@@ -97,7 +97,7 @@ a:hover {
 a.tool-link {
     color: #2980b9;
     text-decoration: none;
-    font-family: "SFMono-Regular", Consolas, monospace;
+    font-family: SFMono-Regular, Consolas, monospace;
 }
 
 a.tool-link:hover {
@@ -110,7 +110,7 @@ a.tool-link:hover {
     border-radius: 6px;
     padding: 14px 20px;
     margin-bottom: 16px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
     display: flex;
     align-items: center;
     gap: 16px;
@@ -156,6 +156,12 @@ a.tool-link:hover {
     font-size: 0.9em;
     background: #f5f6fa;
     color: #2c3e50;
+}
+
+.toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
 }
 
 .search-wrap input:focus {
@@ -206,25 +212,18 @@ a.tool-link:hover {
     height: 20px;
 }
 
-.toggle input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
+
 
 .slider {
     position: absolute;
     cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     background: #ccc;
     border-radius: 20px;
     transition: 0.2s;
 }
 
-.slider:before {
+.slider::before {
     position: absolute;
     content: "";
     height: 14px;
@@ -240,7 +239,7 @@ input:checked + .slider {
     background: #27ae60;
 }
 
-input:checked + .slider:before {
+input:checked + .slider::before {
     transform: translateX(16px);
 }
 """

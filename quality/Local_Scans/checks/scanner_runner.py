@@ -12,7 +12,7 @@ def run_scanner_to_file(command, output: Path, *, env=None):
     with output.open("w", encoding="utf-8") as stream:
         return subprocess.run(  # nosec B603 - scanner argv; shell=False
             command, stdout=stream, stderr=subprocess.DEVNULL,
-            env=env, check=False,
+            env=env, check=False, timeout=900,
         )
 
 

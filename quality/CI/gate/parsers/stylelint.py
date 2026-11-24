@@ -54,7 +54,7 @@ import json
 from pathlib import Path
 
 from quality.CI.gate.schemas import base_tool_result
-from quality.CI.gate.utils import determine_max_severity
+from quality.CI.gate.utils import determine_max_severity, initialize_artifact
 
 
 SEVERITY_MAP = {
@@ -88,13 +88,8 @@ def parse_stylelint(raw_dir: Path) -> dict:
     result = base_tool_result("stylelint")
     artifact = raw_dir / "stylelint.json"
 
-    if not artifact.exists():
-        result["artifact_present"] = False
-        result["runtime_error"] = True
+    if not initialize_artifact(artifact, result):
         return result
-
-    result["artifact_present"] = True
-    result["executed"] = True
 
     try:
         with open(artifact, "r", encoding="utf-8") as file_handle:
