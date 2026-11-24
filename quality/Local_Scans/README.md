@@ -70,9 +70,9 @@ Optional overrides are documented in `quality/project.example.json`; Maven modul
 
 ## Reports and troubleshooting
 
-Reports default to a repository-name-and-path-hash directory under `~/Downloads/quality-gates-reports/`. `QUALITY_OUTPUT_DIR` may select a dedicated subdirectory under Downloads. Symlink/reparse-point paths are rejected. Each run has a separate session; no previous session is recursively deleted. ZIP exports contain only normalized JSON and HTML. Raw Gitleaks and TruffleHog artifacts are not retained after normalization; temporary scanner data can still exist during execution. Treat local reports and interrupted runs as sensitive. Delete old sessions manually when no scan is running.
+Reports default to a repository-name-and-path-hash directory under `~/Downloads/quality-gates-reports/`. `QUALITY_OUTPUT_DIR` may select a dedicated subdirectory under Downloads. Symlink/reparse-point paths are rejected. Each run has a separate session; no previous session is recursively deleted. ZIP exports contain normalized JSON, consolidated HTML/JSON and available Java diagnostics. Raw Gitleaks and TruffleHog artifacts are not retained after normalization; temporary scanner data can still exist during execution. Treat local reports and interrupted runs as sensitive. Delete old sessions manually when no scan is running.
 
-Exit 0 means the advisory report was generated, not that every scanner passed. Exit 2 means launcher/report failure. Inspect individual scanner statuses for findings, errors, disabled scanners and coverage diagnostics. CI blocking policy is separate. See [reporting](reporting/report_README.md) and [CI](../CI/README.md).
+Exit 0 means the advisory report was generated, not that every scanner passed. Exit 2 means scanner execution or launcher/report failure. Inspect individual scanner statuses for findings, errors, disabled scanners and coverage diagnostics. CI blocking policy is separate. See [reporting](reporting/report_README.md) and [CI](../CI/README.md).
 
 If Trivy cannot find `docker-credential-desktop`, ensure the configured helper is on PATH. On macOS Docker Desktop may require `export PATH="/Applications/Docker.app/Contents/Resources/bin:$PATH"`. Do not delete credentials. Optional database initialization: `trivy image --download-db-only`. Check network access and registry authentication for download failures.
 
@@ -80,13 +80,13 @@ Run regression tests with `python -m unittest discover -s quality/Local_Scans/te
 
 ## Real scanner acceptance
 
-Run `python -m quality.Local_Scans.acceptance --report ~/Downloads/qg-acceptance.json` (PowerShell: use `"$HOME/Downloads/qg-acceptance.json"`). Install all prerequisites first. The fixture requires findings from every scanner and checks Trivy modes and retained report leakage. A missing scanner, missing finding, or report error fails acceptance. This is not a clean-fixture or failure-injection certification.
+Run `python -m quality.Local_Scans.acceptance --report ~/Downloads/qg-acceptance.json` (PowerShell: use `"$HOME/Downloads/qg-acceptance.json"`). Install all prerequisites first. The fixture requires findings from every scanner and checks Trivy modes and retained report leakage. A missing scanner, missing finding, or report error fails acceptance. Release acceptance also runs clean fixtures; platform verification includes regression and security checks.
 
-The manual GitHub Actions acceptance workflow uses a GitHub-hosted Linux runner or dedicated trusted self-hosted Windows/macOS runners labeled `qg-acceptance`, with the documented prerequisites and a running Linux-container Docker engine. Do not register a personal workstation for untrusted repository workflows. Native Windows Python regression tests also run on GitHub-hosted Windows without Bash.
+The GitHub Actions acceptance workflow uses hosted Linux and Windows runners and an optional trusted self-hosted macOS runner labeled `qg-acceptance`. Linux and Windows run independently on feature-branch pushes and can be selected manually. Generated HTML/CSS validation is included. Do not register a personal workstation for untrusted repository workflows. Native Windows Python regression tests also run on GitHub-hosted Windows without Bash.
 
 ### Release acceptance
 
-The real acceptance command runs both deliberately noncompliant and clean synthetic projects. A successful Trivy scan with a valid report and zero findings passes; category coverage evidence remains diagnostic metadata. Do not interpret a successful process exit as proof of complete coverage. Run the regression workflow on all three hosted operating systems and the real scanner workflow on the hosted Linux runner or provisioned, trusted Windows/macOS runners with Java, Maven, Node, Docker Linux containers and Trivy available. Keep each platform JSON result as release evidence. A missing runner, failed check or missing artifact blocks release. Do not run untrusted pull-request code on self-hosted runners.
+The real acceptance command runs both deliberately noncompliant and clean synthetic projects. A successful Trivy scan with a valid report and zero findings passes; category coverage evidence remains diagnostic metadata. Do not interpret a successful process exit as proof of complete coverage. Run the regression workflow on all three hosted operating systems and the real scanner workflow on the hosted Linux and Windows runners or a provisioned, trusted macOS runner with the documented scanner prerequisites. Keep each platform JSON result as release evidence. A missing runner, failed check or missing artifact blocks release. Do not run untrusted pull-request code on self-hosted runners.
 
 ### ZIP scanner reports
 
@@ -96,9 +96,9 @@ Acceptance runs retain validated positive and clean ZIP archives beside the JSON
 
 ### Scanner result semantics
 
-PASSED means completed analysis with a valid artifact and zero findings; FAILED means completed analysis with findings. ERROR means unreliable execution or normalization. DISABLED is intentional; SKIPPED identifies the documented no-Java-target condition. Coverage evidence is diagnostic, not a pass criterion. Local results remain advisory; CI enforcement is unchanged.
+PASSED means completed analysis with a valid artifact and zero findings; FAILED means completed analysis with findings. ERROR means unreliable execution or normalization. DISABLED is intentional; SKIPPED identifies a scanner with no applicable targets. Coverage evidence is diagnostic, not a pass criterion. Local results remain advisory; CI enforcement is unchanged.
 
-Run `python -m quality.Local_Scans.platform_acceptance` from the repository root to retain platform evidence in Downloads. The workflow defaults to Both (Linux and Windows concurrently), with independent jobs and no fail-fast cancellation. A single platform can also be selected. Windows and macOS real acceptance still require Linux-container Docker for TruffleHog; hosted Python regression is not a substitute.
+Run `python -m quality.Local_Scans.platform_acceptance` from the repository root to retain platform evidence in Downloads. The workflow defaults to Both (Linux and Windows concurrently), with independent jobs and no fail-fast cancellation. A single platform can also be selected. Native TruffleHog can avoid the Docker requirement; Docker remains a fallback. Hosted Python regression is not a substitute for real scanner acceptance.
 
 The native launcher returns 2 for scanner execution errors after exporting the report; advisory findings alone return 0. Platform reports retain exit codes and elapsed time without arbitrary scanner stdout or stderr.
 

@@ -1,6 +1,6 @@
 # Local Scanner Wrappers
 
-The Java scanners currently use POSIX shell wrappers:
+The Java scanners use native Python orchestration in `java_native.py`. Legacy POSIX wrappers remain available:
 
 - `check_checkstyle.sh` — Checkstyle
 - `check_pmd.sh` — PMD
@@ -16,6 +16,6 @@ The launcher selects Python and discovers Maven modules containing Java source f
 
 The Java wrappers require compatible Java and Maven tooling and may download scanner distributions. SpotBugs also needs compiled bytecode. The additional scanner orchestration uses Python scripts in this directory for Python, HTML, CSS, and secret scanning. Tools can fail because of missing dependencies, network access, malformed artifacts, or execution errors; such failures must not be presented as clean scans.
 
-Scanner status is represented separately from findings. `CLEAN`, `FINDINGS`, `DISABLED`, and `ERROR` have different meanings. Local scans are advisory; CI enforcement is handled separately.
+Scanner status is represented separately from findings. `PASSED`, `FAILED`, `SKIPPED`, `DISABLED`, and `ERROR` have different meanings. Local scans are advisory; CI enforcement is handled separately.
 
-**Portability:** these shell wrappers do not provide native Windows execution. The current Windows batch entrypoint uses Git Bash. See [local scanning](../README.md) and [portability](../../PORTABILITY.md).
+**Portability:** the native Python launcher supports Windows without Git Bash or WSL. Real Windows and Linux acceptance remains pending. See [local scanning](../README.md) and [portability](../../PORTABILITY.md).
