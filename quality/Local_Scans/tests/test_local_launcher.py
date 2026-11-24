@@ -2,7 +2,7 @@
 
 import json
 import os
-import shutil
+import sys
 import subprocess  # nosec B404
 import tempfile
 import unittest
@@ -13,9 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 LAUNCHER = REPO_ROOT / "quality/Local_Scans/run-local-checks.sh"
 
 # Resolve the shell executable for the controlled launcher regression test.
-SHELL = shutil.which("sh")
-if SHELL is None:
-    raise RuntimeError("Required POSIX shell executable is unavailable")
+
 
 
 class LocalLauncherTests(unittest.TestCase):
@@ -35,7 +33,7 @@ class LocalLauncherTests(unittest.TestCase):
 
             # Fixed executable and repository-local launcher; shell=False.
             result = subprocess.run(  # nosec B603
-                [SHELL, str(LAUNCHER)],
+                [sys.executable, "-m", "quality.Local_Scans.run_local_checks", "--no-browser"],
                 cwd=REPO_ROOT,
                 env=environment,
                 capture_output=True,
@@ -52,6 +50,27 @@ class LocalLauncherTests(unittest.TestCase):
             self.assertNotIn("--- Checkstyle ---", result.stdout)
             self.assertNotIn("--- PMD ---", result.stdout)
             self.assertNotIn("--- SpotBugs ---", result.stdout)
+
+    def test_output_directory_defaults_outside_repository(self):
+        """Default report storage must be under the user's Downloads folder."""
+        source = LAUNCHER.read_text(encoding="utf-8")
+        self.assertIn('Downloads/quality-gates-reports/', source)
+        self.assertIn('QUALITY_OUTPUT_DIR', source)
+        self.assertNotIn('OUTPUT_DIR="${SCRIPT_DIR}/reports"', source)
+
+    def test_rejects_unsafe_output_before_scanners(self):
+        """Do not permit cleanup to target the repository or Downloads root."""
+        environment = os.environ.copy()
+        environment["QUALITY_OUTPUT_DIR"] = str(REPO_ROOT)
+        result = subprocess.run(  # nosec B603
+            [sys.executable, "-m", "quality.Local_Scans.run_local_checks", "--no-browser"],
+                cwd=REPO_ROOT,
+            env=environment, capture_output=True, text=True,
+            check=False, timeout=30,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Unsafe local quality report output directory", result.stderr)
+        self.assertNotIn("--- Checkstyle ---", result.stdout)
 
 
 if __name__ == "__main__":

@@ -96,7 +96,8 @@ class TestReportRenderer(unittest.TestCase):
             "passed": "No findings.",
             "failed": "Findings were reported but details are unavailable.",
             "error": "Scanner execution failed.",
-            "skipped": "Scanner was disabled or not executed.",
+            "skipped": "No applicable scan targets were detected.",
+            "disabled": "Scanner was intentionally disabled.",
         }
 
         for status, message in cases.items():

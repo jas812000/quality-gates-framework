@@ -1,6 +1,8 @@
-"""Build nine-scanner sections for the Local Quality Gate advisory report."""
+"""Build ten-scanner sections for the Local Quality Gate advisory report."""
 
 from html import escape
+
+from quality.Local_Scans.local_normalize import scanner_result_status
 
 from quality.shared.reporting.report_controls import summary_table_head
 from quality.shared.reporting.tool_registry import (
@@ -15,20 +17,7 @@ from .report_rows import finding_row, summary_row
 
 def _scanner_status(result: dict) -> str:
     """Translate CI execution results into local display statuses."""
-    if result.get("runtime_error"):
-        return "error"
-
-    metadata = result.get("metadata", {})
-    if metadata.get("status") == "disabled":
-        return "skipped"
-
-    if not result.get("executed"):
-        return "error"
-
-    if result.get("violation_count", 0):
-        return "failed"
-
-    return "passed"
+    return scanner_result_status(result)
 
 
 def _scanner_rows(context: dict) -> list:
@@ -60,7 +49,8 @@ def _finding_rows(findings: list, status: str) -> str:
         "passed": "No findings.",
         "failed": "Findings were reported but details are unavailable.",
         "error": "Scanner execution failed. Findings are unavailable.",
-        "skipped": "Scanner was disabled or not executed.",
+        "skipped": "No applicable scan targets were detected.",
+        "disabled": "Scanner was intentionally disabled.",
     }
 
     message = messages.get(status, "Scanner status unavailable.")
@@ -83,6 +73,7 @@ def tool_section(
     tool_id = escape(tool_id, quote=True)
     tool_name = escape(tool_name)
 
+    coverage_text = "Configured scanners: vuln, misconfig, secret" if tool_id == "trivy" else ""
     return f"""
 <div class="tool-section" id="tool-{tool_id}"
      data-tool="{tool_id}"
@@ -101,6 +92,7 @@ def tool_section(
                 Role: Advisory
             </span>
         </div>
+        <div>{coverage_text}</div>
         <div class="sev-counts">
             {sev_pills(severity_counts)}
         </div>
@@ -131,7 +123,7 @@ def tool_section(
 
 
 def build_summary_table(context: dict) -> str:
-    """Render the nine-scanner summary table."""
+    """Render the ten-scanner summary table."""
     rows = []
 
     for result in _scanner_rows(context):
@@ -167,7 +159,7 @@ def build_summary_table(context: dict) -> str:
 
 
 def build_sections(context: dict) -> str:
-    """Render all nine normalized scanner sections."""
+    """Render all ten normalized scanner sections."""
     sections = []
 
     for result in _scanner_rows(context):

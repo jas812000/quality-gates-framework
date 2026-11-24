@@ -1,5 +1,5 @@
 
-"""Integrate the nine Local Quality Gate scanners.
+"""Integrate the ten Local Quality Gate scanners.
 
 Preserve raw artifacts and use the CI normalization schema.
 The Local Quality Gate remains advisory.
@@ -67,7 +67,7 @@ def integrate(
     tools_dir: Path,
     java_statuses: dict,
 ) -> dict:
-    """Run six scanners and combine them with Java results."""
+    """Run seven scanners and combine them with Java results."""
     repo_root = repo_root.resolve()
     work_dir = work_dir.resolve()
     reports_dir = reports_dir.resolve()
@@ -78,8 +78,8 @@ def integrate(
     normalized_file = normalized_dir / "normalized.json"
 
     # Remove old raw artifacts before starting another scan.
-    if raw_dir.exists():
-        shutil.rmtree(raw_dir)
+    if raw_dir.exists() or raw_dir.is_symlink() or normalized_dir.is_symlink():
+        raise ValueError("Unsafe or reused report session")
 
     raw_dir.mkdir(parents=True)
     normalized_dir.mkdir(parents=True, exist_ok=True)
@@ -99,7 +99,7 @@ def integrate(
         # Report actual normalized outcomes, not merely execution completion.
         additional = {
             "pylint", "bandit", "htmlhint", "stylelint",
-            "gitleaks", "trufflehog",
+            "gitleaks", "trufflehog", "trivy",
         }
         for result in document["results"]:
             if result["tool"] in additional:
@@ -110,13 +110,18 @@ def integrate(
                     "stylelint": "Stylelint",
                     "gitleaks": "Gitleaks",
                     "trufflehog": "TruffleHog",
+                    "trivy": "Trivy",
                 }[result["tool"]]
                 print(f"\n--- {display_name} ---", flush=True)
                 print(format_scanner_outcome(result), flush=True)
 
         # Retain the complete raw artifacts for local inspection.
         for artifact in staging.iterdir():
-            if artifact.is_file():
+            if (
+                artifact.is_file()
+                    and not artifact.is_symlink() and artifact.name not in {"trufflehog.jsonl",
+                        "gitleaks.json"}
+            ):
                 shutil.copy2(artifact, raw_dir / artifact.name)
 
     # Add normalized results to the existing ZIP input.

@@ -24,6 +24,7 @@ class JavaLayout:
 
     @property
     def ambiguous(self) -> bool:
+        """Return whether discovery found multiple candidate modules."""
         return len(self.candidates) > 1
 
 

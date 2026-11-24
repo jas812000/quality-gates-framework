@@ -18,7 +18,7 @@ from quality.Local_Scans.scanner_registry import LOCAL_SCANNERS
 
 
 def normalize_local(raw_dir: Path, output_file: Path) -> dict:
-    """Collect nine scanner results without enforcing CI policy."""
+    """Collect ten scanner results without enforcing CI policy."""
     raw_dir = Path(raw_dir)
     output_file = Path(output_file)
 
@@ -54,6 +54,7 @@ def normalize_local(raw_dir: Path, output_file: Path) -> dict:
                 "Local scanner normalization failed."
             )
 
+        result["result_status"] = scanner_result_status(result)
         results.append(result)
 
     severity_counts = aggregate_severity_counts(results, SEVERITY_ORDER)
@@ -90,16 +91,12 @@ def summarize_local(document: dict) -> None:
 
     for result in document["results"]:
         name = result["tool"]
-        metadata = result.get("metadata", {})
-        status = metadata.get("status", "failed")
+        status = scanner_result_status(result)
         count = result.get("violation_count", 0)
 
-        if result.get("runtime_error"):
-            status = "error"
-        elif status == "completed":
-            status = "findings" if count else "clean"
-
-        print(f"{name:14} {status:10} {count} finding(s)")
+        reason = result.get("metadata", {}).get("reason")
+        detail = f" — {reason}" if status in {"skipped", "disabled"} and reason else ""
+        print(f"{name:14} {status:10} {count} finding(s){detail}")
 
     print("------------------------------------------")
     print(f"Total findings: {document['total_violations']}")
@@ -113,17 +110,51 @@ def format_scanner_outcome(result: dict) -> str:
     display = {
         "pylint": "Pylint", "bandit": "Bandit",
         "htmlhint": "HTMLHint", "stylelint": "Stylelint",
-        "gitleaks": "Gitleaks", "trufflehog": "TruffleHog",
+        "gitleaks": "Gitleaks", "trufflehog": "TruffleHog", "trivy": "Trivy",
     }.get(name, name)
-    status = result.get("metadata", {}).get("status", "failed")
+    status = scanner_result_status(result)
     count = result.get("violation_count", 0)
-
-    if result.get("runtime_error") or status == "failed":
+    if status == "error":
         return f"{display}: error (scanner failed)."
-    if status == "disabled":
-        return f"{display}: disabled."
-    if status != "completed":
-        return f"{display}: error (unexpected scanner status)."
-    if count:
+    if status in ("disabled", "skipped"):
+        reason = result.get("metadata", {}).get("reason")
+        return f"{display}: {status}." + (f" {reason}" if reason else "")
+    if status == "failed":
         return f"{display} completed. {count} findings detected."
     return f"{display} passed. No findings found."
+
+
+def scanner_result_status(result: dict) -> str:
+    """Classify normalized execution independently of coverage and policy."""
+    metadata = result.get("metadata", {})
+    status = metadata.get("status")
+
+    if result.get("runtime_error"):
+        return "error"
+
+    if status == "disabled":
+        if result.get("executed") or result.get("artifact_present"):
+            return "error"
+
+        skipped_reasons = {
+            "No applicable Java Maven project detected",
+            "No eligible HTML files were found",
+            "No eligible CSS or SCSS files were found",
+            "No eligible Python files were found",
+        }
+
+        return "skipped" if metadata.get("reason") in skipped_reasons else "disabled"
+
+    if (
+        status != "completed"
+        or not result.get("executed")
+        or not result.get("artifact_present")
+    ):
+        return "error"
+
+    count = result.get("violation_count")
+
+    if not isinstance(count, int) or count.__class__ is not int or count < 0:
+        return "error"
+
+    return "failed" if count else "passed"

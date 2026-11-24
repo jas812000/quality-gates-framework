@@ -7,7 +7,9 @@ from quality.Local_Scans.local_pipeline import _stage_java_results
 
 
 class JavaScannerSkipTests(unittest.TestCase):
+    """Regression coverage for java scanner skip."""
     def test_no_java_marks_all_three_disabled(self):
+        """Verify no java marks all three disabled."""
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             stage = root / "stage"

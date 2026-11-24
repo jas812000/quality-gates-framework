@@ -1,0 +1,72 @@
+name: Real scanner acceptance
+on:
+  push:
+    branches: [feature/NativeWindowsTrivyLocalScans]
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Acceptance platform
+        required: true
+        type: choice
+        default: Both
+        options: [Both, Linux, Windows, macOS]
+permissions:
+  contents: read
+jobs:
+  real-scanners:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON((github.event_name == 'push' || inputs.platform == 'Both') && '["Linux","Windows"]' || format('["{0}"]', inputs.platform)) }}
+    runs-on: ${{ matrix.platform == 'Linux' && fromJSON('["ubuntu-latest"]') || (matrix.platform == 'Windows' && fromJSON('["windows-latest"]') || fromJSON('["self-hosted","macOS","qg-acceptance"]')) }}
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Linux scanner binaries
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz -o "$RUNNER_TEMP/gitleaks.tar.gz"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+          sudo install "$RUNNER_TEMP/gitleaks" /usr/local/bin/gitleaks
+          curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.76.2/trivy_0.76.2_Linux-64bit.deb -o "$RUNNER_TEMP/trivy.deb"
+          sudo dpkg -i "$RUNNER_TEMP/trivy.deb"
+      - name: Install Windows scanner binaries
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          choco install gitleaks trivy trufflehog -y --no-progress
+          if ($LASTEXITCODE -ne 0) { throw 'Scanner installation failed' }
+          "$env:ChocolateyInstall\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Install Python dependencies
+        run: python -m pip install -r quality/requirements-test.txt -r quality/Local_Scans/requirements-scanners.txt
+      - name: Run portable verification and real acceptance
+        run: python -m quality.Local_Scans.platform_acceptance
+      - name: Validate generated HTML and CSS
+        if: success() || failure()
+        run: python -m quality.shared.reporting.validate_generated --output "${{ runner.temp }}/qg-generated-${{ github.run_id }}-${{ github.run_attempt }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ matrix.platform }}-${{ github.run_attempt }}
+          path: |
+            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}.txt
+            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}.json
+            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}_positive.zip
+            ~/Downloads/qg-platform-${{ github.run_id }}-${{ github.run_attempt }}_clean.zip
+            ${{ runner.temp }}/qg-generated-${{ github.run_id }}-${{ github.run_attempt }}/qg-generated-*/summary.json
+          if-no-files-found: error

@@ -10,14 +10,16 @@ class ConsoleOutcomeTests(unittest.TestCase):
 
     def test_clean(self):
         """Clean scanner results produce a consistent success message."""
-        result = {"tool": "pylint", "metadata": {"status": "completed"},
+        result = {"tool": "pylint", "metadata": {"status": "completed"}, "executed": True,
+            "artifact_present": True,
                   "violation_count": 0, "runtime_error": False}
         self.assertEqual(format_scanner_outcome(result),
                          "Pylint passed. No findings found.")
 
     def test_findings(self):
         """Detected findings are reported without implying scanner failure."""
-        result = {"tool": "gitleaks", "metadata": {"status": "completed"},
+        result = {"tool": "gitleaks", "metadata": {"status": "completed"}, "executed": True,
+            "artifact_present": True,
                   "violation_count": 3, "runtime_error": False}
         self.assertEqual(format_scanner_outcome(result),
                          "Gitleaks completed. 3 findings detected.")
