@@ -8,8 +8,8 @@ ROOT = Path(__file__).resolve().parents[3]
 
 def load(name):
     """Load workflow preserving the on key."""
-    return yaml.load((ROOT / '.github/workflows' / name).read_text(
-        encoding='utf-8'), Loader=yaml.BaseLoader)
+    return yaml.safe_load((ROOT / '.github/workflows' / name).read_text(
+        encoding='utf-8'))
 
 
 class WorkflowConfigurationTests(unittest.TestCase):
@@ -19,10 +19,10 @@ class WorkflowConfigurationTests(unittest.TestCase):
         """Verify triggers, runtime paths and independent jobs."""
         workflow = load('scanner-acceptance.yml')
         job = workflow['jobs']['real-scanners']
-        self.assertIn('main', workflow['on']['push']['branches'])
-        self.assertIn('feature/**', workflow['on']['push']['branches'])
-        self.assertIn('workflow_dispatch', workflow['on'])
-        self.assertEqual(job['strategy']['fail-fast'], 'false')
+        self.assertIn('main', workflow[True]['push']['branches'])
+        self.assertIn('feature/**', workflow[True]['push']['branches'])
+        self.assertIn('workflow_dispatch', workflow[True])
+        self.assertEqual(job['strategy']['fail-fast'], False)
         for value in job.get('env', {}).values():
             for context in ('runner.', 'steps.', 'job.', 'env.'):
                 self.assertNotIn(context, str(value))

@@ -106,12 +106,13 @@ def _run_pmd(java, source, config, tools, out):
     archive = tools / "pmd-dist-7.29.0-bin.zip"
     folder = tools / "pmd-bin-7.29.0"
 
+    download(
+        archive,
+        "https://github.com/pmd/pmd/releases/download/"
+        "pmd_releases%2F7.29.0/" + archive.name,
+        "d27177c185b837fa57f097e482d1253468aa035379c5eb2671fa0a279109b179",
+    )
     if not (folder / "lib").is_dir():
-        download(
-            archive,
-            "https://github.com/pmd/pmd/releases/download/"
-            "pmd_releases%2F7.29.0/" + archive.name,
-        )
         extract(archive, tools)
 
     return execute([

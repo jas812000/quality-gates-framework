@@ -1,6 +1,20 @@
 """Common CSS rules used by Local and CI Quality Gates reports."""
 
 BASE_CSS = """
+.tool-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.toggle {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;

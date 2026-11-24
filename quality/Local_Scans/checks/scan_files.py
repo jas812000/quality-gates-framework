@@ -1,6 +1,8 @@
 
 """Shared source-file discovery for Local Quality Gate scanners."""
 
+import os
+import stat
 from pathlib import Path
 
 
@@ -23,30 +25,25 @@ EXCLUDED_PATH_PREFIXES = (
 )
 
 
+def safe_entry(path):
+    """Reject links, reparse points and non-regular filesystem entries."""
+    info = path.lstat()
+    return not (stat.S_ISLNK(info.st_mode) or
+                getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def eligible_files(repo_root, suffixes):
-    """Return source files, excluding generated artifacts."""
+    """Return regular source files without following links or generated trees."""
     root = Path(repo_root).resolve()
     extensions = {suffix.lower() for suffix in suffixes}
-
     files = []
-
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-
-        relative = path.relative_to(root)
-        parts = relative.parts
-
-        if any(part in EXCLUDED_DIRECTORIES for part in parts[:-1]):
-            continue
-
-        if any(
-            parts[:len(prefix)] == prefix
-            for prefix in EXCLUDED_PATH_PREFIXES
-        ):
-            continue
-
-        if path.suffix.lower() in extensions:
-            files.append(str(path))
-
+    for directory, dirs, names in os.walk(root, followlinks=False):
+        parent = Path(directory)
+        dirs[:] = [name for name in dirs if name not in EXCLUDED_DIRECTORIES
+                   and (parent / name).relative_to(root).parts not in EXCLUDED_PATH_PREFIXES
+                   and safe_entry(parent / name)]
+        for name in names:
+            path = parent / name
+            if path.suffix.lower() in extensions and safe_entry(path) and path.is_file():
+                files.append(str(path))
     return sorted(files)
